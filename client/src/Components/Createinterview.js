@@ -1,117 +1,82 @@
 
 import { useState, useEffect } from "react";
 import Axios from "axios";
+import Select from 'react-select'
+
 
 function Createinterview(){
     const [listOfUsers, setListOfUsers] = useState([]);
-    const [selectedValues, setSelectedValues] = useState('');
-    const [timeSlot, setTimeSlot] = useState('');
+    const [selectedParticipants, setSelectedParticipants] = useState([]);
     const [startTime, setStartTime] = useState('');
     const [endTime, setEndTime] = useState('');
     const [scheduledInterviews, setScheduledInterviews] = useState([]);
 
   useEffect(() => {
+    Axios.get("http://localhost:3001/getInterviews").then((response) => {
+      setScheduledInterviews(response.data);
+    });
     Axios.get("http://localhost:3001/getUsers").then((response) => {
       setListOfUsers(response.data);
     });
+
   }, []);
 
-  const handleSelectChange = (event) => {
-    const value = event.target.value;
-    if (selectedValues.includes(value)) {
-      setSelectedValues(selectedValues.filter((name) => name !== value));
-    } else {
-      setSelectedValues([...selectedValues, value]);
+  const handleCreateInterview = async (event) => {
+    event.preventDefault();
+  
+    if (selectedParticipants.length < 2) {
+      alert('Please select at least two participants.');
+      return;
     }
-  };
-
-  const handleStartTimeChange = (event) => {
-    setStartTime(event.target.value);
-  };
-
-  const handleEndTimeChange = (event) => {
-    setEndTime(event.target.value);
-  };
-
-  const isParticipantScheduled = (participant) => {
-    const conflictingInterview = scheduledInterviews.find(
-      (interview) => new Date(interview.startTime) <= new Date(endTime)
-        && new Date(interview.endTime) >= new Date(startTime)
-        && interview.participants.includes(participant)
-    );
-    return !!conflictingInterview;
-  };
-
-  const handleSubmit = () => {
-    const unavailableParticipants = new Set();
-    scheduledInterviews.forEach((interview) => {
-      if (interview.startTime <= startTime && interview.endTime >= endTime) {
-        interview.participants.forEach((participant) => {
-          unavailableParticipants.add(participant);
-        });
-      }
-    });
-
-    const availableParticipants = listOfUsers.filter((item) => {
-        return !unavailableParticipants.has(item.name);
-      });
-
-      Axios.post('/getInterviews', {
-        participants: selectedValues,
-        startTime,
-        endTime
-      })
-        .then((response) => {
-          console.log('Interview scheduled:', response.data);
-          setScheduledInterviews([...scheduledInterviews, response.data]);
-        })
-        .catch((error) => {
-          console.error('Error scheduling interview:', error);
-        });
+  
+    const conflictingParticipants = selectedParticipants.filter((participant) =>
+    scheduledInterviews.some(interview => interview.participants.includes(participant) && 
+    (new Date(interview.startTime) <= new Date(startTime) && new Date(interview.endTime) >= new Date(startTime) || 
+     new Date(interview.startTime) <= new Date(endTime) && new Date(interview.endTime) >= new Date(endTime)))
+);
+  
+    if (conflictingParticipants.length > 0) {
+      alert(`The following participants are not available at the scheduled time: ${conflictingParticipants.join(', ')}`);
+      return;
+    }
+  
+    const newInterview = {
+      startTime,
+      endTime,
+      participants: selectedParticipants,
     };
+  
+    await Axios.post('http://localhost:3001/createInterview', newInterview);
+  
+    // redirect to the interviews list page
+  };
+  
 
     return (
         <div>
-          <label>Select participants:</label>
-          <select multiple value={selectedValues} onChange={handleSelectChange}>
-            {listOfUsers.map((item) => {
-              const unavailable = scheduledInterviews.some((interview) => {
-                return (
-                  interview.startTime <= startTime &&
-                  interview.endTime >= endTime &&
-                  interview.participants.includes(item.name)
-                );
-              });
-              return (
-                <option key={item._id} value={item.name} disabled={unavailable}>
-                  {item.name}
-                </option>
-          );
-        })}
-      </select>
-      <label>Select start time:</label>
-      <input type="datetime-local" value={startTime} onChange={handleStartTimeChange} />
-      <label>Select end time:</label>
-      <input type="datetime-local" value={endTime} onChange={handleEndTimeChange} />
-      <button onClick={handleSubmit}>Schedule interview</button>
-      <h2>Participants:</h2>
-      <ul>
-        {listOfUsers.map((user) => (
-          <li key={user._id}>
-            {user.name} {isParticipantScheduled(user.name, startTime, endTime) && <span>(unavailable)</span>}
-          </li>
-        ))}
-      </ul>
-      <h2>Scheduled interviews:</h2>
-      <ul>
-        {scheduledInterviews.map((interview) => (
-            <li key={interview._id}>
-            <strong>Participants:</strong> {interview.participants.join(', ')} <br />
-            <strong>Start time:</strong> {new Date(interview.startTime).toLocaleString()} <br />
-            <strong>End time:</strong> {new Date(interview.endTime).toLocaleString()}
-            </li>
-                            ))}
-            </ul>
+              <form onSubmit={handleCreateInterview}>
+                  <label htmlFor="startTime">Start Time:</label>
+                  <input type="datetime-local" id="startTime" name="startTime" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
+
+                  <label htmlFor="endTime">End Time:</label>
+                  <input type="datetime-local" id="endTime" name="endTime" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
+
+                  <label htmlFor="participants">Participants:</label>
+                  <label htmlFor="participants">Participants:</label>
+                    <AsyncSelect
+                      id="participants"
+                      name="participants"
+                      isMulti
+                      cacheOptions
+                      defaultOptions
+                      value={selectedParticipants}
+                      loadOptions={loadOptions}
+                      onChange={handleParticipantsChange}
+                      required
+                    />
+
+                  <button type="submit">Schedule Interview</button>
+                </form>
             </div>
                     );
                 };
