@@ -11,17 +11,5 @@ const UserSchema = new mongoose.Schema({
   },
 });
 
-const interviewSchema = new mongoose.Schema({
-  participants: [UserSchema],
-  startTime: {
-    type: Date,
-    required: true
-  },
-  endTime: {
-    type: Date,
-    required: true
-  }
-});
-
 const UserModel = mongoose.model("users", UserSchema);
 module.exports = UserModel;
